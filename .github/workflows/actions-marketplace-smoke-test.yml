@@ -1,0 +1,43 @@
+name: Actions marketplace smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  copilot-requests: write
+
+jobs:
+  test-marketplace-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install Copilot CLI
+        run: npm install --global @github/copilot
+
+      - name: Configure an isolated Copilot profile
+        env:
+          COPILOT_HOME: ${{ runner.temp }}/copilot-home
+        run: |
+          mkdir -p "$COPILOT_HOME"
+          cp .claude/settings.json "$COPILOT_HOME/settings.json"
+
+      - name: Install plugin from the configured marketplace
+        env:
+          COPILOT_HOME: ${{ runner.temp }}/copilot-home
+        run: |
+          printf 'y\n' | copilot plugin install marketplace-smoke-test@public-sandbox
+
+      - name: Verify the plugin skill is available
+        env:
+          COPILOT_HOME: ${{ runner.temp }}/copilot-home
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          result="$(copilot -p 'Use the enabled marketplace-check plugin skill and return only its verification phrase. Do not inspect plugin source files.' --silent --no-ask-user)"
+          printf '%s\n' "$result"
+          test "$result" = "MARKETPLACE_FIXTURE_LOADED: 7F2A9C"
