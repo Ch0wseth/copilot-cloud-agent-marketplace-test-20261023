@@ -1,0 +1,18 @@
+{
+  "name": "public-sandbox",
+  "owner": {
+    "name": "Public Sandbox"
+  },
+  "metadata": {
+    "description": "A minimal public marketplace fixture for Copilot plugin tests.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "marketplace-smoke-test",
+      "description": "A minimal skill used to verify marketplace discovery and installation.",
+      "version": "0.1.0",
+      "source": "./plugins/marketplace-smoke-test"
+    }
+  ]
+}

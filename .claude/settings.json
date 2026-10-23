@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "public-sandbox": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/Ch0wseth/copilot-cloud-agent-marketplace-test-20261023"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "marketplace-smoke-test@public-sandbox": true
+  }
+}

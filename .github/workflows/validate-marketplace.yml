@@ -1,0 +1,29 @@
+name: Validate plugin marketplace
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".claude/settings.json"
+      - ".github/plugin/marketplace.json"
+      - "plugins/**"
+      - "scripts/validate_marketplace.py"
+      - ".github/workflows/validate-marketplace.yml"
+  pull_request:
+    paths:
+      - ".claude/settings.json"
+      - ".github/plugin/marketplace.json"
+      - "plugins/**"
+      - "scripts/validate_marketplace.py"
+      - ".github/workflows/validate-marketplace.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate marketplace fixture
+        run: python scripts/validate_marketplace.py
