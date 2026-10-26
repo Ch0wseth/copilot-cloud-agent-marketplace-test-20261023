@@ -30,10 +30,28 @@ completed = [
     and event.get("data", {}).get("success") is True
 ]
 assert completed, "Skill tool did not complete successfully"
+assert any(
+    event["data"].get("toolTelemetry", {}).get("properties", {}).get("skillSource") == "plugin"
+    and event["data"].get("toolTelemetry", {}).get("restrictedProperties", {}).get("pluginName")
+    == "marketplace-smoke-test"
+    for event in completed
+), "Successful tool call did not resolve the marketplace plugin"
 phrase = "MARKETPLACE_FIXTURE_LOADED: 7F2A9C"
-assert any(phrase in json.dumps(event) for event in completed), "Skill result lacks fixture phrase"
+assert any(
+    event.get("type") == "assistant.message"
+    and event.get("data", {}).get("content", "").strip().strip("`") == phrase
+    for event in events
+), "Final assistant response lacks fixture phrase"
+loaded = [
+    skill
+    for event in events if event.get("type") == "session.skills_loaded"
+    for skill in event.get("data", {}).get("skills", [])
+    if skill.get("name") == "marketplace-check"
+    and skill.get("source") == "plugin"
+    and skill.get("enabled") is True
+    and "/profile/installed-plugins/public-sandbox/marketplace-smoke-test/" in skill.get("path", "")
+]
+assert loaded, "Prompt session did not register an enabled skill from the installed plugin"
 files = (evidence / "files-after-prompt.txt").read_text()
 assert "marketplace-check/SKILL.md" in files, "No installed skill before enumeration"
-assert "marketplace-smoke-test" in (evidence / "plugins-after.json").read_text(), "Plugin not registered"
-assert "marketplace-check" in (evidence / "skills-after.json").read_text(), "Skill not registered"
 print("PASS: automatic installation, registration and successful skill tool invocation")

@@ -75,7 +75,7 @@ jobs:
           echo "$status" > "$TEST_BASE/evidence/prompt-exit.txt"
           # Snapshot before enumeration, which must not create the evidence being tested.
           find "$COPILOT_HOME" "$HOME" -type f \
-            -not -path '*/logs/*' -not -path '*/session-state/*' \
+            -not -path '*/logs/*' -not -path '*/session-state/*' -not -path '*/.cache/*' \
             > "$TEST_BASE/evidence/files-after-prompt.txt"
           cat "$TEST_BASE/evidence/response.jsonl"
           cat "$TEST_BASE/evidence/stderr.txt"

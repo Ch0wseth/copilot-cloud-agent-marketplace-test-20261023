@@ -55,8 +55,11 @@ Both `HOME` and `COPILOT_HOME` are isolated. The prompt runs in a new repository
 containing only configuration, not this README or the plugin's skill source.
 Only the `skill` tool is exposed; the prompt does not contain the expected
 phrase. Verification requires a successful real skill-tool execution with the
-fixture result, an installed skill file already present before enumeration,
-and plugin/skill registration afterward. Missing evidence fails the job.
+fixture response, an installed skill file already present before enumeration,
+and an enabled plugin-source skill registration in the prompt's own events.
+Standalone `plugin list` and `skill list` afterward are additional diagnostics,
+not the authority for the earlier prompt's effective repository scope.
+Missing evidence fails the job.
 Artifacts retain the public fixture response, configuration, inventory and logs
 for 14 days. These CLI-in-Actions results are not proof of identical behavior in
 Copilot cloud-agent sessions or any other unseen environment.
