@@ -1,0 +1,99 @@
+name: Automatic enabledPlugins test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  copilot-requests: write
+
+jobs:
+  automatic-plugins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [repository, user-copilot, user-claude]
+    env:
+      COPILOT_AUTO_UPDATE: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install pinned CLI (not a plugin)
+        run: |
+          npm install --global @github/copilot@1.0.103
+          copilot --version
+      - name: Prepare clean isolated configuration
+        env:
+          SCOPE: ${{ matrix.scope }}
+        run: |
+          base="$GITHUB_WORKSPACE/.automatic-plugin-evidence/$SCOPE"
+          mkdir -p "$base/home" "$base/profile" "$base/work" "$base/evidence"
+          echo "TEST_BASE=$base" >> "$GITHUB_ENV"
+          echo "HOME=$base/home" >> "$GITHUB_ENV"
+          echo "COPILOT_HOME=$base/profile" >> "$GITHUB_ENV"
+          git init --quiet "$base/work"
+          case "$SCOPE" in
+            repository)
+              mkdir -p "$base/work/.claude"
+              cp .claude/settings.json "$base/work/.claude/settings.json"
+              ;;
+            user-copilot)
+              cp .claude/settings.json "$base/profile/settings.json"
+              ;;
+            user-claude)
+              mkdir -p "$base/home/.claude"
+              cp .claude/settings.json "$base/home/.claude/settings.json"
+              ;;
+          esac
+          cp .claude/settings.json "$base/evidence/input-settings.json"
+          printf '%s\n' "$SCOPE" > "$base/evidence/scope.txt"
+          # Only configuration is present in the new repository: no README or skill source.
+          find "$base/work" -not -path '*/.git/*' -type f
+      - name: First prompt - no plugin install or marketplace add
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd "$TEST_BASE/work"
+          copilot --version > "$TEST_BASE/evidence/version.txt"
+          set +e
+          timeout 480 copilot \
+            --trust-folder --no-custom-instructions --no-ask-user \
+            --available-tools=skill --allow-tool=skill \
+            --output-format=json --log-level=info \
+            --log-dir "$TEST_BASE/evidence/logs" \
+            --share "$TEST_BASE/evidence/session.md" \
+            -p 'Invoke the marketplace-check skill using the skill tool, then return its verification phrase. If that skill is unavailable, report UNAVAILABLE. Do not infer or invent a phrase.' \
+            > "$TEST_BASE/evidence/response.jsonl" 2> "$TEST_BASE/evidence/stderr.txt"
+          status=$?
+          set -e
+          echo "$status" > "$TEST_BASE/evidence/prompt-exit.txt"
+          # Snapshot before enumeration, which must not create the evidence being tested.
+          find "$COPILOT_HOME" "$HOME" -type f \
+            -not -path '*/logs/*' -not -path '*/session-state/*' \
+            > "$TEST_BASE/evidence/files-after-prompt.txt"
+          cat "$TEST_BASE/evidence/response.jsonl"
+          cat "$TEST_BASE/evidence/stderr.txt"
+      - name: Enumerate only after the real prompt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          cd "$TEST_BASE/work"
+          copilot plugin list --json > "$TEST_BASE/evidence/plugins-after.json"
+          copilot skill list --json > "$TEST_BASE/evidence/skills-after.json"
+          cat "$TEST_BASE/evidence/plugins-after.json"
+          cat "$TEST_BASE/evidence/skills-after.json"
+      - name: Verify actual skill invocation
+        run: python scripts/verify_automatic_plugin.py "$TEST_BASE"
+      - name: Preserve public fixture evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automatic-plugin-${{ matrix.scope }}
+          path: .automatic-plugin-evidence/${{ matrix.scope }}/evidence
+          retention-days: 14
