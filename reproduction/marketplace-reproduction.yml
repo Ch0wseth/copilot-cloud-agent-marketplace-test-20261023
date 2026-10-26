@@ -1,0 +1,81 @@
+name: Reproduce marketplace automatic loading
+on:
+  workflow_dispatch:
+    inputs:
+      auth_mode:
+        description: Public control, native private baseline, or read-only App
+        type: choice
+        options:
+          - public
+          - native
+          - app
+        default: public
+        required: true
+      marketplace_owner:
+        description: Replace OWNER with the marketplace repository owner
+        default: OWNER
+        required: true
+      marketplace_repo:
+        description: Replace MARKETPLACE_REPO with one repository name
+        default: MARKETPLACE_REPO
+        required: true
+
+permissions:
+  contents: read
+  copilot-requests: write
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MARKETPLACE_OWNER: ${{ inputs.marketplace_owner }}
+      MARKETPLACE_REPO: ${{ inputs.marketplace_repo }}
+      AUTH_MODE: ${{ inputs.auth_mode }}
+      PROOF_ROOT: /tmp/marketplace-proof-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Validate explicit configuration
+        env:
+          APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          owner = os.environ["MARKETPLACE_OWNER"]
+          repo = os.environ["MARKETPLACE_REPO"]
+          assert owner != "OWNER" and repo != "MARKETPLACE_REPO", "Replace placeholders"
+          assert all(re.fullmatch(r"[A-Za-z0-9_.-]+", s) for s in (owner, repo)), "One repository only"
+          mode = os.environ["AUTH_MODE"]
+          assert mode in {"public", "native", "app"}, "Invalid mode"
+          if mode == "app" and not all(os.environ.get(k) for k in ("APP_CLIENT_ID", "APP_PRIVATE_KEY")):
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write("## BLOCKED_APP_CONFIGURATION: App authorization not tested.\n")
+              raise SystemExit("BLOCKED_APP_CONFIGURATION: configure variable and secret")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install pinned CLI
+        run: npm install --global @github/copilot@1.0.103
+      - name: Mint token for exactly one private fixture
+        if: inputs.auth_mode == 'app'
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ inputs.marketplace_owner }}
+          repositories: ${{ inputs.marketplace_repo }}
+          permission-contents: read
+      - name: Automatic proof without explicit installation
+        env:
+          APP_GIT_TOKEN: ${{ steps.app-token.outputs.token }}
+          COPILOT_GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/marketplace-proof.py
+      - name: Clean isolated profile even on failure
+        if: always()
+        run: rm -rf -- "$PROOF_ROOT"
