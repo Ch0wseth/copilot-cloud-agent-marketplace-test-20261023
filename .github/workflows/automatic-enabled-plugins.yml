@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scope: [repository, user-copilot, user-claude]
+        scope: ${{ fromJSON(inputs.scopes || '["repository","user-copilot","user-claude"]') }}
     env:
       COPILOT_AUTO_UPDATE: "false"
     steps:
@@ -31,7 +31,14 @@ jobs:
       - name: Prepare clean isolated configuration
         env:
           SCOPE: ${{ matrix.scope }}
+          MARKETPLACE_REPOSITORY: ${{ inputs.marketplace_repository || github.repository }}
         run: |
+          if ! [[ "$MARKETPLACE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "Invalid marketplace repository, expected owner/repo" >&2
+            exit 1
+          fi
+          # Generated so the marketplace owner is not hardcoded.
+          jq -n --arg url "https://github.com/$MARKETPLACE_REPOSITORY" '{extraKnownMarketplaces: {"public-sandbox": {source: {source: "git", url: $url}}}, enabledPlugins: {"marketplace-smoke-test@public-sandbox": true}}' > "$RUNNER_TEMP/settings.json"
           base="$GITHUB_WORKSPACE/.automatic-plugin-evidence/$SCOPE"
           mkdir -p "$base/home" "$base/profile" "$base/work" "$base/evidence"
           echo "TEST_BASE=$base" >> "$GITHUB_ENV"
@@ -41,17 +48,17 @@ jobs:
           case "$SCOPE" in
             repository)
               mkdir -p "$base/work/.claude"
-              cp .claude/settings.json "$base/work/.claude/settings.json"
+              cp "$RUNNER_TEMP/settings.json" "$base/work/.claude/settings.json"
               ;;
             user-copilot)
-              cp .claude/settings.json "$base/profile/settings.json"
+              cp "$RUNNER_TEMP/settings.json" "$base/profile/settings.json"
               ;;
             user-claude)
               mkdir -p "$base/home/.claude"
-              cp .claude/settings.json "$base/home/.claude/settings.json"
+              cp "$RUNNER_TEMP/settings.json" "$base/home/.claude/settings.json"
               ;;
           esac
-          cp .claude/settings.json "$base/evidence/input-settings.json"
+          cp "$RUNNER_TEMP/settings.json" "$base/evidence/input-settings.json"
           printf '%s\n' "$SCOPE" > "$base/evidence/scope.txt"
           # Only configuration is present in the new repository: no README or skill source.
           find "$base/work" -not -path '*/.git/*' -type f

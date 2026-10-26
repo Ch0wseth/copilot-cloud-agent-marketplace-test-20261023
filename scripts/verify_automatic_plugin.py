@@ -52,6 +52,13 @@ loaded = [
     and "/profile/installed-plugins/public-sandbox/marketplace-smoke-test/" in skill.get("path", "")
 ]
 assert loaded, "Prompt session did not register an enabled skill from the installed plugin"
+plugins = json.loads((evidence / "plugins-after.json").read_text(encoding="utf-8"))
+assert any(
+    p.get("name") == "marketplace-smoke-test"
+    and p.get("marketplace") == "public-sandbox"
+    and p.get("source") == "installed"
+    for p in plugins
+), "Installed plugin metadata missing from plugin list"
 files = (evidence / "files-after-prompt.txt").read_text()
 assert "marketplace-check/SKILL.md" in files, "No installed skill before enumeration"
 print("PASS: automatic installation, registration and successful skill tool invocation")
