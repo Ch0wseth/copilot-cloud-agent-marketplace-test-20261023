@@ -2,6 +2,15 @@ name: Automatic enabledPlugins test
 
 on:
   workflow_dispatch:
+    inputs:
+      marketplace_repository:
+        description: Public marketplace repository as owner/repo (default is this repository)
+        required: false
+        default: ''
+      scopes:
+        description: JSON array of scopes to test
+        required: false
+        default: '["repository","user-copilot","user-claude"]'
 
 permissions:
   contents: read
